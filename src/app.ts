@@ -63,11 +63,17 @@ export type {
   ExpectNoMessageOptions,
 } from "./spy.ts";
 
+export interface RelaxedRules {
+  /** Disable the 5 MiB minimum source size requirement for UploadPartCopy byte-range copies. */
+  disableMinCopySourceSize?: boolean;
+}
+
 export interface BuildAppOptions {
   logger?: boolean;
   host?: string;
   defaultRegion?: string;
   stores?: { sqsStore: SqsStore; snsStore: SnsStore; s3Store: S3Store };
+  relaxedRules?: RelaxedRules;
 }
 
 export function buildApp(options?: BuildAppOptions) {
@@ -192,6 +198,9 @@ export function buildApp(options?: BuildAppOptions) {
   });
 
   const s3Store = options?.stores?.s3Store ?? new S3Store();
+  if (options?.relaxedRules) {
+    s3Store.relaxedRules = options.relaxedRules;
+  }
   registerS3Routes(app, s3Store);
 
   // Add x-amz-request-id and x-amz-id-2 headers to S3 responses
@@ -356,6 +365,8 @@ export async function startFauxqs(options?: {
   init?: string | import("./initConfig.ts").FauxqsInitConfig;
   /** Enable message spying. Pass `true` for defaults or `MessageSpyParams` to configure buffer size. */
   messageSpies?: boolean | import("./spy.ts").MessageSpyParams;
+  /** Relax certain AWS-strict validations for local development convenience. */
+  relaxedRules?: RelaxedRules;
 }): Promise<FauxqsServer> {
   const port = options?.port ?? parseInt(process.env.FAUXQS_PORT ?? "4566");
   const host = options?.host ?? process.env.FAUXQS_HOST;
@@ -383,6 +394,7 @@ export async function startFauxqs(options?: {
     host,
     defaultRegion,
     stores: { sqsStore, snsStore, s3Store },
+    relaxedRules: options?.relaxedRules,
   });
 
   const listenAddress = await app.listen({ port, host: "0.0.0.0" });

@@ -17,6 +17,7 @@ All state is in-memory. No persistence, no external storage dependencies.
     - [Container-to-container S3 virtual-hosted-style](#container-to-container-s3-virtual-hosted-style)
   - [Configuring AWS SDK clients](#configuring-aws-sdk-clients)
   - [Programmatic usage](#programmatic-usage)
+    - [Relaxed rules](#relaxed-rules)
     - [Programmatic state setup](#programmatic-state-setup)
     - [Sending messages programmatically](#sending-messages-programmatically)
     - [Init config file](#init-config-file)
@@ -277,6 +278,23 @@ await server.stop();
 ```
 
 Pass `port: 0` to let the OS assign a random available port (useful in tests).
+
+#### Relaxed rules
+
+By default, fauxqs enforces AWS-strict validations. You can selectively relax some of these for convenience during development:
+
+```typescript
+const server = await startFauxqs({
+  port: 0,
+  relaxedRules: {
+    disableMinCopySourceSize: true,
+  },
+});
+```
+
+| Rule | Default | Description |
+|------|---------|-------------|
+| `disableMinCopySourceSize` | `false` | AWS requires the source object to be [larger than 5 MiB](https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPartCopy.html) for byte-range `UploadPartCopy`. Set to `true` to allow byte-range copies from smaller sources. |
 
 #### Programmatic state setup
 
@@ -905,24 +923,31 @@ Platform application, SMS, and phone number actions are not supported.
 |--------|-----------|
 | CreateBucket | Yes |
 | HeadBucket | Yes |
-| ListObjects | Yes |
-| ListObjectsV2 | Yes |
-| CopyObject | Yes |
-| PutObject | Yes |
-| GetObject | Yes |
-| DeleteObject | Yes |
-| HeadObject | Yes |
-| DeleteObjects | Yes |
 | DeleteBucket | Yes |
 | ListBuckets | Yes |
+| ListObjects | Yes |
+| ListObjectsV2 | Yes |
+| PutObject | Yes |
+| GetObject | Yes |
+| HeadObject | Yes |
+| DeleteObject | Yes |
+| DeleteObjects | Yes |
+| CopyObject | Yes |
 | CreateMultipartUpload | Yes |
 | UploadPart | Yes |
+| UploadPartCopy | Yes |
 | CompleteMultipartUpload | Yes |
 | AbortMultipartUpload | Yes |
-| ListObjectVersions | No |
 | GetBucketLocation | No |
+| ListObjectVersions | No |
+| GetObjectAttributes | No |
+| SelectObjectContent | No |
+| RestoreObject | No |
+| RenameObject | No |
+| ListMultipartUploads | No |
+| ListParts | No |
 
-Bucket configuration (CORS, lifecycle, encryption, replication, etc.), ACLs, versioning, tagging, and other management actions are not supported.
+Bucket configuration (CORS, lifecycle, encryption, replication, logging, website, notifications, policy), ACLs, versioning, tagging, object lock, and public access block actions are not supported.
 
 ### STS
 
@@ -967,7 +992,7 @@ Returns a mock identity with account `000000000000` and ARN `arn:aws:iam::000000
 
 - **Bucket management** — CreateBucket (idempotent), DeleteBucket (rejects non-empty), HeadBucket, ListBuckets, ListObjects (V1 and V2)
 - **Object operations** — PutObject, GetObject, DeleteObject, HeadObject, CopyObject with ETag, Content-Type, and Last-Modified headers
-- **Multipart uploads** — CreateMultipartUpload, UploadPart, CompleteMultipartUpload, AbortMultipartUpload with correct multipart ETag calculation (`MD5-of-part-digests-partCount`), metadata preservation, and part overwrite support
+- **Multipart uploads** — CreateMultipartUpload, UploadPart, UploadPartCopy, CompleteMultipartUpload, AbortMultipartUpload with correct multipart ETag calculation (`MD5-of-part-digests-partCount`), metadata preservation, and part overwrite support
 - **ListObjects V2** — prefix filtering, delimiter-based virtual directories, MaxKeys, continuation tokens, StartAfter
 - **CopyObject** — same-bucket and cross-bucket copy via `x-amz-copy-source` header, with metadata preservation
 - **User metadata** — `x-amz-meta-*` headers are stored and returned on GetObject and HeadObject

@@ -9,6 +9,7 @@ export class S3Store {
   private multipartUploads = new Map<string, MultipartUpload>();
   private multipartUploadsByBucket = new Map<string, Set<string>>();
   spy?: MessageSpy;
+  relaxedRules?: { disableMinCopySourceSize?: boolean };
 
   createBucket(name: string): void {
     if (!this.buckets.has(name)) {

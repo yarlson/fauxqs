@@ -66,6 +66,67 @@ describe("SNS Filter Policy Limits", () => {
     ).rejects.toThrow(/too complex|InvalidParameter/i);
   });
 
+  it("rejects filter policy with more than 3 wildcards in a single pattern", async () => {
+    const policy = {
+      key1: [{ wildcard: "a*b*c*d*" }],
+    };
+    await expect(
+      sns.send(
+        new SetSubscriptionAttributesCommand({
+          SubscriptionArn: subscriptionArn,
+          AttributeName: "FilterPolicy",
+          AttributeValue: JSON.stringify(policy),
+        }),
+      ),
+    ).rejects.toThrow(/wildcard|InvalidParameter/i);
+  });
+
+  it("rejects filter policy exceeding 100 total wildcard complexity points", async () => {
+    // 1 key with 34 wildcard patterns, each with 3 wildcards = 34*3 = 102 > 100
+    // Combinations = 34 (under 150), keys = 1 (under 5)
+    const policy = {
+      key1: Array.from({ length: 34 }, (_, j) => ({ wildcard: `a*b*c*${j}` })),
+    };
+    await expect(
+      sns.send(
+        new SetSubscriptionAttributesCommand({
+          SubscriptionArn: subscriptionArn,
+          AttributeName: "FilterPolicy",
+          AttributeValue: JSON.stringify(policy),
+        }),
+      ),
+    ).rejects.toThrow(/wildcard|complexity|InvalidParameter/i);
+  });
+
+  it("rejects filter policy with more than 3 wildcards in anything-but wildcard pattern", async () => {
+    const policy = {
+      key1: [{ "anything-but": { wildcard: "a*b*c*d*" } }],
+    };
+    await expect(
+      sns.send(
+        new SetSubscriptionAttributesCommand({
+          SubscriptionArn: subscriptionArn,
+          AttributeName: "FilterPolicy",
+          AttributeValue: JSON.stringify(policy),
+        }),
+      ),
+    ).rejects.toThrow(/wildcard|InvalidParameter/i);
+  });
+
+  it("accepts filter policy with wildcards within limits", async () => {
+    const policy = {
+      key1: [{ wildcard: "a*b*c*" }],
+      key2: [{ wildcard: "x*" }],
+    };
+    await sns.send(
+      new SetSubscriptionAttributesCommand({
+        SubscriptionArn: subscriptionArn,
+        AttributeName: "FilterPolicy",
+        AttributeValue: JSON.stringify(policy),
+      }),
+    );
+  });
+
   it("accepts filter policy within limits", async () => {
     const policy = {
       key1: ["a", "b"],

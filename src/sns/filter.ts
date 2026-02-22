@@ -32,6 +32,58 @@ export function validateFilterPolicyLimits(policyJson: string): void {
       "Invalid parameter: FilterPolicy: Filter policy is too complex",
     );
   }
+  // Validate wildcard constraints: max 3 per pattern, max 100 total complexity points
+  const wildcardStats = countWildcards(policy);
+  if (wildcardStats.maxPerPattern > 3) {
+    throw new SnsError(
+      "InvalidParameter",
+      "Invalid parameter: FilterPolicy: A single pattern must not contain more than 3 wildcards",
+    );
+  }
+  if (wildcardStats.totalComplexity > 100) {
+    throw new SnsError(
+      "InvalidParameter",
+      "Invalid parameter: FilterPolicy: Wildcard complexity exceeds the allowed limit",
+    );
+  }
+}
+
+function countWildcards(obj: unknown): { maxPerPattern: number; totalComplexity: number } {
+  let maxPerPattern = 0;
+  let totalComplexity = 0;
+
+  function visit(value: unknown): void {
+    if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+      const rec = value as Record<string, unknown>;
+      if ("wildcard" in rec && typeof rec.wildcard === "string") {
+        const count = (rec.wildcard.match(/\*/g) || []).length;
+        if (count > maxPerPattern) maxPerPattern = count;
+        // Each wildcard adds 1 complexity point
+        totalComplexity += count;
+      } else if ("anything-but" in rec) {
+        const ab = rec["anything-but"];
+        if (typeof ab === "object" && ab !== null && !Array.isArray(ab)) {
+          const abRec = ab as Record<string, unknown>;
+          if ("wildcard" in abRec && typeof abRec.wildcard === "string") {
+            const count = (abRec.wildcard.match(/\*/g) || []).length;
+            if (count > maxPerPattern) maxPerPattern = count;
+            totalComplexity += count;
+          }
+        }
+      } else {
+        for (const v of Object.values(rec)) {
+          visit(v);
+        }
+      }
+    } else if (Array.isArray(value)) {
+      for (const item of value) {
+        visit(item);
+      }
+    }
+  }
+
+  visit(obj);
+  return { maxPerPattern, totalComplexity };
 }
 
 /**

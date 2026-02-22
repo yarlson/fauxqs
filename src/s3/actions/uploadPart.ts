@@ -27,6 +27,17 @@ export function uploadPart(
 
     let partBody: Buffer;
     const copyRange = request.headers["x-amz-copy-source-range"] as string | undefined;
+    if (
+      copyRange &&
+      !store.relaxedRules?.disableMinCopySourceSize &&
+      srcObj.body.length <= 5 * 1024 * 1024
+    ) {
+      throw new S3Error(
+        "InvalidRequest",
+        "The specified copy source is not supported as a byte-range copy source",
+        400,
+      );
+    }
     if (copyRange) {
       const match = copyRange.match(/^bytes=(\d+)-(\d+)$/);
       if (!match) {
@@ -34,6 +45,13 @@ export function uploadPart(
       }
       const start = parseInt(match[1], 10);
       const end = parseInt(match[2], 10);
+      if (start > end || start >= srcObj.body.length) {
+        throw new S3Error(
+          "InvalidArgument",
+          `Range specified is not valid for source object of size: ${srcObj.body.length}`,
+          400,
+        );
+      }
       partBody = srcObj.body.subarray(start, end + 1);
     } else {
       partBody = srcObj.body;
