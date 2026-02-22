@@ -9,7 +9,7 @@ export default defineConfig({
       include: ["src/**/*.ts"],
       exclude: ["src/server.ts", "src/s3/s3Types.ts", "src/sns/snsTypes.ts"],
       thresholds: {
-        statements: 85,
+        statements: 90,
         branches: 75,
         functions: 95,
         lines: 90,

@@ -448,6 +448,20 @@ describe("SQS Send/Receive/Delete", () => {
     ).rejects.toThrow(/does not exist/i);
   });
 
+  it("rejects empty message body with MissingParameter", async () => {
+    const res = await fetch(`http://localhost:${server.port}/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-amz-json-1.0",
+        "X-Amz-Target": "AmazonSQS.SendMessage",
+      },
+      body: JSON.stringify({ QueueUrl: queueUrl, MessageBody: "" }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.__type).toContain("MissingParameter");
+  });
+
   it("handles ChangeMessageVisibility with invalid receipt handle gracefully", async () => {
     await sqs.send(new SendMessageCommand({ QueueUrl: queueUrl, MessageBody: "vis-test" }));
     // ChangeMessageVisibility with a bogus handle — fauxqs rejects with MessageNotInflight
