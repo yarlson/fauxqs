@@ -4,20 +4,28 @@ import type { MessageSpy } from "../spy.ts";
 import type { S3Object, MultipartUpload, ChecksumAlgorithm } from "./s3Types.ts";
 import { computeCompositeChecksum } from "./checksum.ts";
 
+export type BucketType = "general-purpose" | "directory";
+
 export class S3Store {
   private buckets = new Map<string, Map<string, S3Object>>();
   private bucketCreationDates = new Map<string, Date>();
+  private bucketTypes = new Map<string, BucketType>();
   private multipartUploads = new Map<string, MultipartUpload>();
   private multipartUploadsByBucket = new Map<string, Set<string>>();
   spy?: MessageSpy;
   relaxedRules?: { disableMinCopySourceSize?: boolean };
 
-  createBucket(name: string): void {
+  createBucket(name: string, type?: BucketType): void {
     if (!this.buckets.has(name)) {
       this.validateBucketName(name);
       this.buckets.set(name, new Map());
       this.bucketCreationDates.set(name, new Date());
+      this.bucketTypes.set(name, type ?? "general-purpose");
     }
+  }
+
+  getBucketType(name: string): BucketType | undefined {
+    return this.bucketTypes.get(name);
   }
 
   private validateBucketName(name: string): void {
@@ -60,6 +68,7 @@ export class S3Store {
     }
     this.buckets.delete(name);
     this.bucketCreationDates.delete(name);
+    this.bucketTypes.delete(name);
   }
 
   hasBucket(name: string): boolean {
@@ -251,6 +260,49 @@ export class S3Store {
       commonPrefixes: Array.from(commonPrefixSet).sort(),
       isTruncated,
     };
+  }
+
+  renameObject(bucket: string, sourceKey: string, destKey: string): void {
+    const objects = this.buckets.get(bucket);
+    if (!objects) {
+      throw new S3Error("NoSuchBucket", `The specified bucket does not exist: ${bucket}`, 404);
+    }
+
+    const bucketType = this.bucketTypes.get(bucket);
+    if (bucketType !== "directory") {
+      throw new S3Error(
+        "InvalidRequest",
+        "RenameObject is only supported for directory buckets.",
+        400,
+      );
+    }
+
+    const obj = objects.get(sourceKey);
+    if (!obj) {
+      throw new S3Error(
+        "NoSuchKey",
+        `The specified key does not exist.`,
+        404,
+        `/${bucket}/${sourceKey}`,
+      );
+    }
+
+    // Move: set at destKey, delete sourceKey. Preserve all metadata, ETag, lastModified.
+    obj.key = destKey;
+    objects.set(destKey, obj);
+    if (sourceKey !== destKey) {
+      objects.delete(sourceKey);
+    }
+
+    if (this.spy) {
+      this.spy.addMessage({
+        service: "s3",
+        bucket,
+        key: destKey,
+        status: "renamed",
+        timestamp: Date.now(),
+      });
+    }
   }
 
   deleteObjects(bucket: string, keys: string[]): string[] {
@@ -521,6 +573,7 @@ export class S3Store {
   purgeAll(): void {
     this.buckets.clear();
     this.bucketCreationDates.clear();
+    this.bucketTypes.clear();
     this.multipartUploads.clear();
     this.multipartUploadsByBucket.clear();
   }

@@ -30,12 +30,20 @@ const SubscriptionSchema = v.object({
   attributes: v.optional(StringRecordSchema),
 });
 
+const BucketSchema = v.union([
+  v.string(),
+  v.object({
+    name: v.string(),
+    type: v.optional(v.picklist(["general-purpose", "directory"])),
+  }),
+]);
+
 const InitConfigSchema = v.object({
   region: v.optional(v.string()),
   queues: v.optional(v.array(QueueSchema)),
   topics: v.optional(v.array(TopicSchema)),
   subscriptions: v.optional(v.array(SubscriptionSchema)),
-  buckets: v.optional(v.array(v.string())),
+  buckets: v.optional(v.array(BucketSchema)),
 });
 
 export type FauxqsInitConfig = v.InferOutput<typeof InitConfigSchema>;
@@ -103,8 +111,12 @@ export function applyInitConfig(
 
   // Create buckets (independent)
   if (config.buckets) {
-    for (const name of config.buckets) {
-      s3Store.createBucket(name);
+    for (const entry of config.buckets) {
+      if (typeof entry === "string") {
+        s3Store.createBucket(entry);
+      } else {
+        s3Store.createBucket(entry.name, entry.type);
+      }
     }
   }
 }

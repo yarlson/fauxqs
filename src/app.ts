@@ -313,7 +313,10 @@ export interface FauxqsServer {
     region?: string;
     attributes?: Record<string, string>;
   }): void;
-  createBucket(name: string): { bucketName: string };
+  createBucket(
+    name: string,
+    options?: { type?: "general-purpose" | "directory" },
+  ): { bucketName: string };
   /** Delete a queue by name. No-op if the queue does not exist. */
   deleteQueue(name: string, options?: { region?: string }): void;
   /** Delete a topic by name, including its subscriptions. No-op if the topic does not exist. */
@@ -446,8 +449,8 @@ export async function startFauxqs(options?: {
       const queueArn = sqsQueueArn(opts.queue, r);
       snsStore.subscribe(topicArn, "sqs", queueArn, opts.attributes);
     },
-    createBucket(name) {
-      s3Store.createBucket(name);
+    createBucket(name, options) {
+      s3Store.createBucket(name, options?.type);
       return { bucketName: name };
     },
     deleteQueue(name, opts) {

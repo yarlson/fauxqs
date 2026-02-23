@@ -16,6 +16,7 @@ import { uploadPart } from "./actions/uploadPart.ts";
 import { completeMultipartUpload } from "./actions/completeMultipartUpload.ts";
 import { abortMultipartUpload } from "./actions/abortMultipartUpload.ts";
 import { getObjectAttributes } from "./actions/getObjectAttributes.ts";
+import { renameObject } from "./actions/renameObject.ts";
 
 export function registerS3Routes(app: FastifyInstance, store: S3Store): void {
   const handleError = (err: unknown, reply: import("fastify").FastifyReply, isHead = false) => {
@@ -109,7 +110,9 @@ export function registerS3Routes(app: FastifyInstance, store: S3Store): void {
         return;
       }
       const query = getQuery(request);
-      if (query["uploadId"] && query["partNumber"]) {
+      if ("renameObject" in query) {
+        renameObject(request as any, reply, store);
+      } else if (query["uploadId"] && query["partNumber"]) {
         uploadPart(request as any, reply, store);
       } else {
         putObject(request as any, reply, store);

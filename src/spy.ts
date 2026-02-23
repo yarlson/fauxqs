@@ -30,7 +30,7 @@ export interface SnsSpyMessage {
 }
 
 /** Possible statuses for an S3 spy event. */
-export type S3SpyEventStatus = "uploaded" | "downloaded" | "deleted" | "copied";
+export type S3SpyEventStatus = "uploaded" | "downloaded" | "deleted" | "copied" | "renamed";
 
 /** An S3 event captured by {@link MessageSpy}. */
 export interface S3SpyEvent {

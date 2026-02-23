@@ -571,13 +571,22 @@ Example:
 
 ##### `buckets`
 
-Array of bucket name strings.
+Array of bucket name strings or objects. Use the object form to create directory buckets (S3 Express One Zone).
 
 ```json
 {
-  "buckets": ["uploads", "exports", "temp"]
+  "buckets": [
+    "uploads",
+    "exports",
+    { "name": "my-directory-bucket", "type": "directory" }
+  ]
 }
 ```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | `string` | Yes | Bucket name. |
+| `type` | `"general-purpose"` \| `"directory"` | No | Bucket type. Defaults to `"general-purpose"`. Directory buckets support `RenameObject`. |
 
 #### Message spy
 
@@ -604,6 +613,7 @@ The spy tracks events across all three services using a discriminated union on `
 - **`downloaded`** — object was retrieved (GetObject)
 - **`deleted`** — object was deleted (DeleteObject, only when key existed)
 - **`copied`** — object was copied (CopyObject; also emits `uploaded` for the destination)
+- **`renamed`** — object was renamed (RenameObject, directory buckets only)
 
 ##### Awaiting messages
 
@@ -760,7 +770,7 @@ interface S3SpyEvent {
   service: "s3";
   bucket: string;
   key: string;
-  status: "uploaded" | "downloaded" | "deleted" | "copied";
+  status: "uploaded" | "downloaded" | "deleted" | "copied" | "renamed";
   timestamp: number;
 }
 
@@ -945,7 +955,7 @@ Platform application, SMS, and phone number actions are not supported.
 | ListObjectVersions | No |
 | SelectObjectContent | No |
 | RestoreObject | No |
-| RenameObject | No |
+| RenameObject | Yes |
 | ListMultipartUploads | No |
 | ListParts | No |
 
@@ -1003,6 +1013,8 @@ Returns a mock identity with account `000000000000` and ARN `arn:aws:iam::000000
 - **Stream uploads** — handles AWS chunked transfer encoding (`Content-Encoding: aws-chunked`) for stream bodies, including trailing header parsing for checksums
 - **Checksums** — CRC32, SHA1, and SHA256 checksums are stored on upload (PutObject, UploadPart) and returned on download (GetObject, HeadObject with `x-amz-checksum-mode: ENABLED`). Multipart uploads compute composite checksums. GetObjectAttributes supports the `Checksum` attribute. CRC32C and CRC64NVME are silently ignored. Checksums are stored and returned as-is — no body validation is performed.
 - **GetObjectAttributes** — selective metadata retrieval via `x-amz-object-attributes` header: ETag, StorageClass, ObjectSize, ObjectParts (with pagination), and Checksum (including per-part checksums for multipart objects)
+- **RenameObject** — atomic rename within directory buckets (`PUT /:bucket/:key?renameObject`). Preserves all metadata, ETag, timestamps, and checksums. Rejects general-purpose buckets. Default no-overwrite (412 if destination exists unless `If-Match` is provided). Supports source and destination conditional headers.
+- **Directory buckets** — `CreateBucket` accepts `<Type>Directory</Type>` in the body. Programmatic API: `server.createBucket("name", { type: "directory" })`. Init config supports `{ name, type }` objects in the `buckets` array.
 - **Path-style and virtual-hosted-style** — both S3 URL styles are supported (see below)
 
 ### S3 URL styles
