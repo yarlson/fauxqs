@@ -9,6 +9,10 @@
 #
 # The init config mirrors exactly what setup() creates in test/setup.ts,
 # so your app runs against the same resource topology in both modes.
+#
+# Persistence is off by default. To persist state across restarts,
+# create a .env file with FAUXQS_PERSISTENCE=true. Init config is
+# idempotent — re-applying it after a restart skips existing resources.
 
 services:
   fauxqs:
@@ -17,8 +21,10 @@ services:
       - "4566:4566"
     environment:
       - FAUXQS_INIT=/app/init.json
+      - FAUXQS_PERSISTENCE=${FAUXQS_PERSISTENCE-}  # set to "true" in .env for local persistence
     volumes:
       - ./fauxqs-init.json:/app/init.json
+      - fauxqs-data:/data
 
   # Your application would go here:
   #
@@ -34,3 +40,6 @@ services:
   #     - S3_BUCKET=app-files
   #     - SQS_QUEUE_URL=http://sqs.us-east-1.fauxqs:4566/000000000000/file-notifications
   #     - SNS_TOPIC_ARN=arn:aws:sns:us-east-1:000000000000:file-events
+
+volumes:
+  fauxqs-data:
