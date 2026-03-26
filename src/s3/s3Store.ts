@@ -11,6 +11,7 @@ export class S3Store {
   private buckets = new Map<string, Map<string, S3Object>>();
   private bucketCreationDates = new Map<string, Date>();
   private bucketTypes = new Map<string, BucketType>();
+  private bucketLifecycleConfigurations = new Map<string, string>();
   private multipartUploads = new Map<string, MultipartUpload>();
   private multipartUploadsByBucket = new Map<string, Set<string>>();
   spy?: MessageSpy;
@@ -54,6 +55,24 @@ export class S3Store {
     return this.bucketTypes.get(name);
   }
 
+  putBucketLifecycleConfiguration(name: string, config: string): void {
+    this.bucketLifecycleConfigurations.set(name, config);
+    this.persistence?.saveBucketLifecycleConfiguration(name, config);
+  }
+
+  getBucketLifecycleConfiguration(name: string): string | undefined {
+    return this.bucketLifecycleConfigurations.get(name);
+  }
+
+  deleteBucketLifecycleConfiguration(name: string): void {
+    this.bucketLifecycleConfigurations.delete(name);
+    this.persistence?.deleteBucketLifecycleConfiguration(name);
+  }
+
+  restoreBucketLifecycleConfiguration(name: string, config: string): void {
+    this.bucketLifecycleConfigurations.set(name, config);
+  }
+
   private validateBucketName(name: string): void {
     if (name.length < 3 || name.length > 63) {
       throw new S3Error("InvalidBucketName", `The specified bucket is not valid: ${name}`, 400);
@@ -95,6 +114,7 @@ export class S3Store {
     this.buckets.delete(name);
     this.bucketCreationDates.delete(name);
     this.bucketTypes.delete(name);
+    this.bucketLifecycleConfigurations.delete(name);
     this.persistence?.deleteBucket(name);
   }
 
@@ -640,6 +660,7 @@ export class S3Store {
     this.buckets.clear();
     this.bucketCreationDates.clear();
     this.bucketTypes.clear();
+    this.bucketLifecycleConfigurations.clear();
     this.multipartUploads.clear();
     this.multipartUploadsByBucket.clear();
   }
