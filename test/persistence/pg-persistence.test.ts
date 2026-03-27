@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, onTestFinished } from "vitest";
+import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { startFauxqs } from "../../src/app.js";
 import {
   SQSClient,
@@ -21,8 +22,6 @@ import {
   GetObjectCommand,
   ListBucketsCommand,
 } from "@aws-sdk/client-s3";
-
-const PG_URL = process.env.FAUXQS_TEST_PG_URL;
 
 function makeSqsClient(port: number): SQSClient {
   const client = new SQSClient({
@@ -55,30 +54,25 @@ function makeS3Client(port: number): S3Client {
   return client;
 }
 
-describe.skipIf(!PG_URL)("PostgreSQL Persistence", () => {
-  // Clean PG tables before test suite
+describe("PostgreSQL Persistence", () => {
+  let pgContainer: StartedPostgreSqlContainer;
+  let pgUrl: string;
+
   beforeAll(async () => {
-    const { Pool } = await import("pg");
-    const pool = new Pool({ connectionString: PG_URL });
-    await pool.query("DROP TABLE IF EXISTS s3_multipart_parts CASCADE");
-    await pool.query("DROP TABLE IF EXISTS s3_multipart_uploads CASCADE");
-    await pool.query("DROP TABLE IF EXISTS s3_objects CASCADE");
-    await pool.query("DROP TABLE IF EXISTS s3_bucket_lifecycle_configurations CASCADE");
-    await pool.query("DROP TABLE IF EXISTS s3_buckets CASCADE");
-    await pool.query("DROP TABLE IF EXISTS sns_subscriptions CASCADE");
-    await pool.query("DROP TABLE IF EXISTS sns_topics CASCADE");
-    await pool.query("DROP TABLE IF EXISTS sqs_messages CASCADE");
-    await pool.query("DROP TABLE IF EXISTS sqs_queues CASCADE");
-    await pool.end();
+    pgContainer = await new PostgreSqlContainer("postgres:17-alpine").start();
+    pgUrl = pgContainer.getConnectionUri();
+  }, 60_000);
+
+  afterAll(async () => {
+    await pgContainer?.stop();
   });
 
   it("SQS messages survive restart", async () => {
-    // Start server with PG persistence
     const server1 = await startFauxqs({
       port: 0,
       logger: false,
       persistenceBackend: "postgresql",
-      postgresqlUrl: PG_URL!,
+      postgresqlUrl: pgUrl,
     });
 
     const sqs = makeSqsClient(server1.port);
@@ -87,12 +81,11 @@ describe.skipIf(!PG_URL)("PostgreSQL Persistence", () => {
     await sqs.send(new SendMessageCommand({ QueueUrl, MessageBody: "pg-test-message" }));
     await server1.stop();
 
-    // Restart with same PG
     const server2 = await startFauxqs({
       port: 0,
       logger: false,
       persistenceBackend: "postgresql",
-      postgresqlUrl: PG_URL!,
+      postgresqlUrl: pgUrl,
     });
 
     const sqs2 = makeSqsClient(server2.port);
@@ -100,7 +93,11 @@ describe.skipIf(!PG_URL)("PostgreSQL Persistence", () => {
       new GetQueueUrlCommand({ QueueName: "pg-test-queue" }),
     );
     const { Messages } = await sqs2.send(
-      new ReceiveMessageCommand({ QueueUrl: QueueUrl2, WaitTimeSeconds: 1, MaxNumberOfMessages: 1 }),
+      new ReceiveMessageCommand({
+        QueueUrl: QueueUrl2,
+        WaitTimeSeconds: 1,
+        MaxNumberOfMessages: 1,
+      }),
     );
     expect(Messages).toHaveLength(1);
     expect(Messages![0].Body).toBe("pg-test-message");
@@ -112,31 +109,28 @@ describe.skipIf(!PG_URL)("PostgreSQL Persistence", () => {
       port: 0,
       logger: false,
       persistenceBackend: "postgresql",
-      postgresqlUrl: PG_URL!,
+      postgresqlUrl: pgUrl,
     });
 
     const sns = makeSnsClient(server1.port);
     const sqs = makeSqsClient(server1.port);
 
     await sqs.send(new CreateQueueCommand({ QueueName: "pg-sns-queue" }));
-    const { TopicArn } = (
-      await sns.send(new CreateTopicCommand({ Name: "pg-sns-topic" }))
-    );
+    const { TopicArn } = await sns.send(new CreateTopicCommand({ Name: "pg-sns-topic" }));
     await sns.send(
       new SubscribeCommand({
         TopicArn,
         Protocol: "sqs",
-        Endpoint: `arn:aws:sqs:us-east-1:000000000000:pg-sns-queue`,
+        Endpoint: "arn:aws:sqs:us-east-1:000000000000:pg-sns-queue",
       }),
     );
     await server1.stop();
 
-    // Restart
     const server2 = await startFauxqs({
       port: 0,
       logger: false,
       persistenceBackend: "postgresql",
-      postgresqlUrl: PG_URL!,
+      postgresqlUrl: pgUrl,
     });
 
     const sns2 = makeSnsClient(server2.port);
@@ -156,7 +150,7 @@ describe.skipIf(!PG_URL)("PostgreSQL Persistence", () => {
       port: 0,
       logger: false,
       persistenceBackend: "postgresql",
-      postgresqlUrl: PG_URL!,
+      postgresqlUrl: pgUrl,
     });
 
     const s3 = makeS3Client(server1.port);
@@ -171,12 +165,11 @@ describe.skipIf(!PG_URL)("PostgreSQL Persistence", () => {
     );
     await server1.stop();
 
-    // Restart
     const server2 = await startFauxqs({
       port: 0,
       logger: false,
       persistenceBackend: "postgresql",
-      postgresqlUrl: PG_URL!,
+      postgresqlUrl: pgUrl,
     });
 
     const s3b = makeS3Client(server2.port);
@@ -189,21 +182,5 @@ describe.skipIf(!PG_URL)("PostgreSQL Persistence", () => {
     const body = await obj.Body!.transformToString();
     expect(body).toBe("pg-test-content");
     await server2.stop();
-  });
-
-  afterAll(async () => {
-    // Clean up PG tables
-    const { Pool } = await import("pg");
-    const pool = new Pool({ connectionString: PG_URL });
-    await pool.query("DROP TABLE IF EXISTS s3_multipart_parts CASCADE");
-    await pool.query("DROP TABLE IF EXISTS s3_multipart_uploads CASCADE");
-    await pool.query("DROP TABLE IF EXISTS s3_objects CASCADE");
-    await pool.query("DROP TABLE IF EXISTS s3_bucket_lifecycle_configurations CASCADE");
-    await pool.query("DROP TABLE IF EXISTS s3_buckets CASCADE");
-    await pool.query("DROP TABLE IF EXISTS sns_subscriptions CASCADE");
-    await pool.query("DROP TABLE IF EXISTS sns_topics CASCADE");
-    await pool.query("DROP TABLE IF EXISTS sqs_messages CASCADE");
-    await pool.query("DROP TABLE IF EXISTS sqs_queues CASCADE");
-    await pool.end();
   });
 });
