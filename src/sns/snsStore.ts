@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { snsTopicArn, snsSubscriptionArn, parseArn } from "../common/arnHelper.ts";
 import { SnsError } from "../common/errors.ts";
 import type { MessageSpy } from "../spy.ts";
-import type { PersistenceManager } from "../persistence.ts";
+import type { PersistenceProvider } from "../persistence/index.ts";
 import type { SnsTopic, SnsSubscription } from "./snsTypes.ts";
 
 export class SnsStore {
@@ -10,7 +10,7 @@ export class SnsStore {
   subscriptions = new Map<string, SnsSubscription>();
   region?: string;
   spy?: MessageSpy;
-  persistence?: PersistenceManager;
+  persistence?: PersistenceProvider;
 
   createTopic(
     name: string,

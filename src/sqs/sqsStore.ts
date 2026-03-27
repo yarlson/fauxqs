@@ -4,7 +4,7 @@ import { FifoMap } from "toad-cache";
 import { md5, md5OfMessageAttributes } from "../common/md5.ts";
 import { DEFAULT_ACCOUNT_ID } from "../common/types.ts";
 import type { MessageSpy } from "../spy.ts";
-import type { PersistenceManager } from "../persistence.ts";
+import type { PersistenceProvider } from "../persistence/index.ts";
 import type {
   SqsMessage,
   InflightEntry,
@@ -35,7 +35,7 @@ export class SqsQueue {
   private pollTimer?: ReturnType<typeof setInterval>;
 
   spy?: MessageSpy;
-  persistence?: PersistenceManager;
+  persistence?: PersistenceProvider;
 
   // FIFO-specific fields
   fifoMessages: Map<string, SqsMessage[]> = new Map();
@@ -656,7 +656,7 @@ export class SqsStore {
   host: string = "localhost";
   region?: string;
   spy?: MessageSpy;
-  persistence?: PersistenceManager;
+  persistence?: PersistenceProvider;
 
   createQueue(
     name: string,

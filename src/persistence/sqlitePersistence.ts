@@ -1,14 +1,14 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync, type StatementSync } from "node:sqlite";
-import type { SqsStore, SqsQueue } from "./sqs/sqsStore.ts";
-import type { SqsMessage } from "./sqs/sqsTypes.ts";
-import type { SnsStore } from "./sns/snsStore.ts";
-import type { SnsTopic, SnsSubscription } from "./sns/snsTypes.ts";
-import type { S3Store, BucketType } from "./s3/s3Store.ts";
-import type { S3Object, MultipartUpload, MultipartPart } from "./s3/s3Types.ts";
-import type { ChecksumAlgorithm } from "./s3/s3Types.ts";
-import type { S3PersistenceProvider } from "./s3/s3Persistence.ts";
+import type { SqsStore, SqsQueue } from "../sqs/sqsStore.ts";
+import type { SqsMessage } from "../sqs/sqsTypes.ts";
+import type { SnsStore } from "../sns/snsStore.ts";
+import type { SnsTopic, SnsSubscription } from "../sns/snsTypes.ts";
+import type { S3Store, BucketType } from "../s3/s3Store.ts";
+import type { S3Object, MultipartUpload, MultipartPart } from "../s3/s3Types.ts";
+import type { ChecksumAlgorithm } from "../s3/s3Types.ts";
+import type { PersistenceProvider } from "./persistenceProvider.ts";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS sqs_queues (
@@ -157,7 +157,7 @@ interface PreparedStatements {
   readBody: StatementSync;
 }
 
-export class PersistenceManager implements S3PersistenceProvider {
+export class SqlitePersistence implements PersistenceProvider {
   private db: DatabaseSync;
   private stmts: PreparedStatements;
 

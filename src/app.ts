@@ -44,7 +44,7 @@ import { sqsQueueArn, snsTopicArn } from "./common/arnHelper.ts";
 import { DEFAULT_REGION, SNS_MAX_MESSAGE_SIZE_BYTES } from "./common/types.ts";
 import { loadInitConfig, applyInitConfig } from "./initConfig.ts";
 import { MessageSpy, type MessageSpyReader } from "./spy.ts";
-import { PersistenceManager } from "./persistence.ts";
+import { SqlitePersistence } from "./persistence/index.ts";
 import { FileS3Persistence } from "./s3/fileS3Persistence.ts";
 import type { S3PersistenceProvider } from "./s3/s3Persistence.ts";
 export type {
@@ -397,7 +397,7 @@ export async function startFauxqs(options?: {
   const s3Store = new S3Store();
 
   // Persistence: create managers and wire into stores before any data is loaded
-  const persistenceManager = options?.dataDir ? new PersistenceManager(options.dataDir) : undefined;
+  const persistenceManager = options?.dataDir ? new SqlitePersistence(options.dataDir) : undefined;
 
   // S3 persistence: s3StorageDir (files) takes priority over dataDir (SQLite)
   const s3Persistence: S3PersistenceProvider | undefined = options?.s3StorageDir
