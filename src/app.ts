@@ -366,7 +366,7 @@ export interface FauxqsServer {
     config: import("./initConfig.ts").FauxqsInitConfig,
   ): Promise<import("./initConfig.ts").SetupResult>;
   /** Clear all messages from queues and all objects from buckets, but keep queues, topics, subscriptions, and buckets intact. Also clears the spy buffer. */
-  reset(): void;
+  reset(): Promise<void>;
   purgeAll(): void;
 }
 
@@ -404,6 +404,9 @@ export async function startFauxqs(options?: {
 
   // Persistence: create managers and wire into stores before any data is loaded
   const backend = options?.persistenceBackend ?? "sqlite";
+  if (backend === "postgresql" && !options?.postgresqlUrl) {
+    throw new Error("postgresqlUrl is required when persistenceBackend is 'postgresql'");
+  }
   let persistenceManager:
     | import("./persistence/persistenceProvider.ts").PersistenceProvider
     | undefined;
@@ -728,17 +731,17 @@ export async function startFauxqs(options?: {
         region,
       });
     },
-    reset() {
-      sqsStore.clearMessages();
+    async reset() {
+      await sqsStore.clearMessages();
       s3Store.clearObjects();
       if (s3Persistence && s3Persistence !== persistenceManager) {
         // Separate S3 persistence — clear S3 files independently
-        s3Persistence.deleteAllObjects();
-        s3Persistence.deleteAllMultipartUploads();
-        persistenceManager?.clearMessagesAndObjects();
+        await s3Persistence.deleteAllObjects();
+        await s3Persistence.deleteAllMultipartUploads();
+        await persistenceManager?.clearMessagesAndObjects();
       } else {
         // Unified persistence — single call handles both SQS/SNS messages and S3
-        persistenceManager?.clearMessagesAndObjects();
+        await persistenceManager?.clearMessagesAndObjects();
       }
       if (messageSpy) {
         messageSpy.clear();

@@ -735,7 +735,7 @@ describe("programmatic API", () => {
         MessageBody: "hello",
       }));
 
-      server.reset();
+      await server.reset();
 
       // Queue still exists
       const afterQueues = await sqs.send(new ListQueuesCommand({}));
@@ -761,7 +761,7 @@ describe("programmatic API", () => {
         Body: "hello",
       }));
 
-      server.reset();
+      await server.reset();
 
       // Bucket still exists
       const buckets = await s3.send(new ListBucketsCommand({}));
@@ -779,7 +779,7 @@ describe("programmatic API", () => {
       await server.createTopic("reset-topic");
       await server.subscribe({ topic: "reset-topic", queue: "reset-sub-q" });
 
-      server.reset();
+      await server.reset();
 
       const sns = createSnsClient(server.port);
       const topics = await sns.send(new ListTopicsCommand({}));
@@ -803,7 +803,7 @@ describe("programmatic API", () => {
       // Spy has the message
       expect(server.spy.getAllMessages()).toHaveLength(1);
 
-      server.reset();
+      await server.reset();
 
       // Spy buffer is cleared
       expect(server.spy.getAllMessages()).toHaveLength(0);
@@ -820,7 +820,7 @@ describe("programmatic API", () => {
         MessageBody: "before",
       }));
 
-      server.reset();
+      await server.reset();
 
       await sqs.send(new SendMessageCommand({
         QueueUrl: queues.QueueUrls![0],

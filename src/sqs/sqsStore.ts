@@ -796,10 +796,10 @@ export class SqsStore {
   }
 
   /** Clear all messages from all queues without removing the queues themselves. */
-  clearMessages(): void {
+  async clearMessages(): Promise<void> {
     this.shutdown();
     for (const queue of this.queues.values()) {
-      queue.purge();
+      await queue.purge();
     }
   }
 

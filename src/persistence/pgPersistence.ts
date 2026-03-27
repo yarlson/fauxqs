@@ -113,8 +113,18 @@ export class PgPersistence implements PersistenceProvider {
 
   static async create(connectionString: string): Promise<PgPersistence> {
     const pool = new pg.Pool({ connectionString });
-    for (const stmt of SCHEMA_STATEMENTS) {
-      await pool.query(stmt);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      for (const stmt of SCHEMA_STATEMENTS) {
+        await client.query(stmt);
+      }
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
     }
     return new PgPersistence(pool);
   }
@@ -233,9 +243,9 @@ export class PgPersistence implements PersistenceProvider {
 
   async updateMessageReady(messageId: string): Promise<void> {
     await this.pool.query(
-      `UPDATE sqs_messages SET receipt_handle = $1, visibility_deadline = $2, approximate_receive_count = $3, approximate_first_receive_timestamp = $4
-       WHERE message_id = $5`,
-      [null, null, null, null, messageId],
+      `UPDATE sqs_messages SET receipt_handle = NULL, visibility_deadline = NULL
+       WHERE message_id = $1`,
+      [messageId],
     );
   }
 
@@ -807,7 +817,7 @@ export class PgPersistence implements PersistenceProvider {
         topicArn: row.topic_arn,
         protocol: row.protocol,
         endpoint: row.endpoint,
-        confirmed: row.confirmed === 1,
+        confirmed: Boolean(row.confirmed),
         attributes: JSON.parse(row.attributes),
       };
       snsStore.subscriptions.set(row.arn, sub);
